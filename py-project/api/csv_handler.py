@@ -1,7 +1,7 @@
 import os
 import csv
 
-TMP_DIR = 'data'
+TMP_DIR = '/tmp'
 USERS_CSV = os.path.join(TMP_DIR, 'users.csv')
 REMINDERS_CSV = os.path.join(TMP_DIR, 'reminders.csv')
 
