@@ -1,0 +1,6 @@
+flask
+flask-login
+apscheduler
+email-validator
+python-dotenv
+gunicorn
