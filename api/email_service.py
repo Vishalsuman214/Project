@@ -2,7 +2,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from csv_handler import get_all_reminders, mark_reminder_completed, get_user_by_id
+from api.csv_handler import get_all_reminders, mark_reminder_completed, get_user_by_id
 
 # Email configuration (should be moved to environment variables in production)
 # No default credentials, user must set their own

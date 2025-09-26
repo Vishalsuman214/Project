@@ -3,7 +3,7 @@ import csv
 from flask_login import login_required, current_user
 from datetime import datetime
 import io
-from csv_handler import add_reminder, get_reminders_by_user_id, get_reminder_by_id, update_reminder
+from api.csv_handler import add_reminder, get_reminders_by_user_id, get_reminder_by_id, update_reminder
 
 reminders_bp = Blueprint('reminders', __name__)
 
@@ -78,7 +78,7 @@ def delete_reminder(reminder_id):
         return redirect(url_for('reminders.dashboard'))
     
     # Delete reminder using CSV
-    from csv_handler import delete_reminder as delete_reminder_csv
+    from api.csv_handler import delete_reminder as delete_reminder_csv
     delete_reminder_csv(reminder_id)
     flash('Reminder deleted successfully!')
     return redirect(url_for('reminders.dashboard'))

@@ -1,10 +1,22 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, login_required, logout_user, current_user
-from csv_handler import add_user, get_user_by_email, get_user_by_id, update_user_email_credentials
-from email_service import send_test_email
+from api.csv_handler import add_user, get_user_by_email, get_user_by_id, update_user_email_credentials
+from api.email_service import send_test_email
 
 auth_bp = Blueprint('auth', __name__)
+
+def set_auth_notification(message, category='info'):
+    """Set authentication notification to be shown only on login page"""
+    session['auth_notification'] = {
+        'message': message,
+        'category': category
+    }
+
+def get_auth_notification():
+    """Get authentication notification and clear it from session"""
+    notification = session.pop('auth_notification', None)
+    return notification
 
 class User:
     def __init__(self, id, username, email, password_hash):
@@ -35,14 +47,14 @@ def register():
         # Check if user already exists
         user_data = get_user_by_email(email)
         if user_data:
-            flash('Email address already exists')
+            set_auth_notification('Email address already exists', 'error')
             return redirect(url_for('auth.register'))
-        
+
         # Create new user
         password_hash = generate_password_hash(password, method='scrypt')
         user_id = add_user(username, email, password_hash)
-        
-        flash('Account created successfully! Please log in.')
+
+        set_auth_notification('Account created successfully! Please log in.', 'success')
         return redirect(url_for('auth.login'))
     
     return render_template('register.html')
@@ -65,9 +77,10 @@ def login():
             login_user(user)
             return redirect(url_for('reminders.dashboard'))
         else:
-            flash('Invalid email or password')
+            set_auth_notification('Invalid email or password', 'error')
     
-    return render_template('login.html')
+    notification = get_auth_notification()
+    return render_template('login.html', get_auth_notification=lambda: notification)
 
 @auth_bp.route('/logout')
 @login_required
@@ -89,20 +102,20 @@ def email_credentials():
             if new_email and new_app_password:
                 test_email_sent = send_test_email(new_email, new_app_password, new_email)
                 if test_email_sent:
-                    flash('Test email sent successfully. Check your inbox.')
+                    set_auth_notification('Test email sent successfully. Check your inbox.', 'success')
                 else:
-                    flash('Failed to send test email. Please check your email and app password.')
+                    set_auth_notification('Failed to send test email. Please check your email and app password.', 'error')
             else:
-                flash('Please provide both email and app password to test.')
+                set_auth_notification('Please provide both email and app password to test.', 'error')
         elif action == 'save':
             if new_email and new_app_password:
                 success = update_user_email_credentials(user_id, new_email, new_app_password)
                 if success:
-                    flash('Email credentials updated successfully.')
+                    set_auth_notification('Email credentials updated successfully.', 'success')
                 else:
-                    flash('Failed to update email credentials.')
+                    set_auth_notification('Failed to update email credentials.', 'error')
             else:
-                flash('Please provide both email and app password.')
+                set_auth_notification('Please provide both email and app password.', 'error')
         return redirect(url_for('auth.email_credentials'))
     current_email = user_data.get('email', '') if user_data else ''
     current_app_password = user_data.get('app_password', '') if user_data else ''

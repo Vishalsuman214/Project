@@ -1,8 +1,11 @@
 from flask import Flask, redirect, url_for
 from flask_login import LoginManager
 import os
-from auth import User
-from csv_handler import get_user_by_id
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from api.auth import User
+from api.csv_handler import get_user_by_id
+from api.email_service import check_and_send_reminders
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -34,14 +37,31 @@ def create_app():
         return redirect(url_for('auth.login'))
 
     # Register blueprints
-    from auth import auth_bp
-    from reminders import reminders_bp
+    from api.auth import auth_bp
+    from api.reminders import reminders_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(reminders_bp)
 
-    # Note: BackgroundScheduler removed for Vercel deployment
-    # Email reminders will need to be handled differently in serverless environment
+    # Set up background scheduler for email reminders
+    scheduler = BackgroundScheduler()
+
+    # Schedule check_and_send_reminders to run every minute
+    scheduler.add_job(
+        func=check_and_send_reminders,
+        args=[app],
+        trigger=IntervalTrigger(minutes=1),
+        id='check_reminders',
+        name='Check and send due reminders',
+        replace_existing=True
+    )
+
+    # Start the scheduler
+    scheduler.start()
+
+    # Shut down the scheduler when exiting the app
+    import atexit
+    atexit.register(lambda: scheduler.shutdown())
 
     return app
 

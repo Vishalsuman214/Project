@@ -77,6 +77,16 @@
             <h1>Welcome Back</h1>
             <p>Sign in to your account</p>
         </div>
+
+        <!-- Authentication Notifications -->
+        {% with notification = get_auth_notification() %}
+            {% if notification %}
+                <div class="alert alert-{{ 'success' if notification.category == 'success' else 'danger' }} alert-dismissible fade show" role="alert" style="border-radius: 8px; margin-bottom: 1.5rem;">
+                    {{ notification.message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endif %}
+        {% endwith %}
         <form method="POST">
             <div class="mb-3">
                 <input type="email" name="email" class="form-control" placeholder="Email address" required>
