@@ -2,7 +2,10 @@ import os
 import csv
 from datetime import datetime
 
-TMP_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+if os.environ.get('VERCEL'):
+    TMP_DIR = '/tmp/data'
+else:
+    TMP_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 USERS_CSV = os.path.join(TMP_DIR, 'users.csv')
 REMINDERS_CSV = os.path.join(TMP_DIR, 'reminders.csv')
 
