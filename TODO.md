@@ -1,3 +1,10 @@
-# TODO List for Fixing Vercel Read-Only File System Error
-
-- [x] Update csv_handler.py to set TMP_DIR conditionally for Vercel vs local development
+- [x] Add ThreadPoolExecutor to scheduler in py-project/api/index.py for concurrent job execution
+- [x] Add /cron/reminders route in py-project/api/index.py to trigger reminder checks
+- [x] Update py-project/vercel.json to configure cron job for the route
+- [x] Add password reset functionality with email reset link
+- [x] Add email OTP confirmation during login process
+- [x] Show "unsuccessful" notification if auth emails fail to send
+- [x] Update users.csv schema for reset_token, reset_expiry, is_email_confirmed
+- [x] Add system email sender for auth notifications in email_service.py
+- [x] Create forgot_password.html and reset_password.html templates
+- [x] Update login.html with forgot password link and OTP input

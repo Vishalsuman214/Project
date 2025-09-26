@@ -3,6 +3,7 @@ from flask_login import LoginManager
 import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.executors.pool import ThreadPoolExecutor
 from api.auth import User
 from api.csv_handler import get_user_by_id
 from api.email_service import check_and_send_reminders
@@ -36,6 +37,11 @@ def create_app():
     def home():
         return redirect(url_for('auth.login'))
 
+    @app.route('/cron/reminders')
+    def cron_reminders():
+        check_and_send_reminders(app)
+        return 'Reminders checked', 200
+
     # Register blueprints
     from api.auth import auth_bp
     from api.reminders import reminders_bp
@@ -44,7 +50,7 @@ def create_app():
     app.register_blueprint(reminders_bp)
 
     # Set up background scheduler for email reminders
-    scheduler = BackgroundScheduler()
+    scheduler = BackgroundScheduler(executors={'default': ThreadPoolExecutor(10)})
 
     # Schedule check_and_send_reminders to run every 5 minutes
     scheduler.add_job(

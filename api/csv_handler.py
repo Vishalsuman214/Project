@@ -1,5 +1,6 @@
 import os
 import csv
+import uuid
 from datetime import datetime
 
 if os.environ.get('VERCEL'):
@@ -15,7 +16,7 @@ def init_csv_files():
     if not os.path.exists(USERS_CSV):
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['id', 'username', 'email', 'password_hash', 'app_password'])
+            writer.writerow(['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
     if not os.path.exists(REMINDERS_CSV):
         with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -26,7 +27,7 @@ def add_user(username, email, password_hash):
     user_id = get_next_user_id()
     with open(USERS_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow([user_id, username, email, password_hash, ''])
+        writer.writerow([user_id, username, email, password_hash, '', email, 'False', '', ''])
     return user_id
 
 def get_next_user_id():
@@ -70,15 +71,15 @@ def update_user_email_credentials(user_id, email, app_password):
     updated = False
     for user in users:
         if user['id'] == str(user_id):
-            user['email'] = email
-            user['app_password'] = app_password
+            user['reminder_email'] = email
+            user['reminder_app_password'] = app_password
             updated = True
             break
 
     if updated:
         # Write back all users
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'app_password'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
@@ -198,5 +199,116 @@ def delete_reminder(reminder_id):
             writer = csv.DictWriter(f, fieldnames=['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
             writer.writeheader()
             writer.writerows(reminders)
+        return True
+    return False
+
+def generate_reset_token():
+    return str(uuid.uuid4())
+
+def set_reset_token(user_id, token, expiry):
+    if not os.path.exists(USERS_CSV):
+        return False
+    users = []
+    with open(USERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        users = list(reader)
+
+    updated = False
+    for user in users:
+        if user['id'] == str(user_id):
+            user['reset_token'] = token
+            user['reset_expiry'] = expiry.strftime('%Y-%m-%d %H:%M:%S')
+            updated = True
+            break
+
+    if updated:
+        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
+            writer.writeheader()
+            writer.writerows(users)
+        return True
+    return False
+
+def clear_reset_token(user_id):
+    if not os.path.exists(USERS_CSV):
+        return False
+    users = []
+    with open(USERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        users = list(reader)
+
+    updated = False
+    for user in users:
+        if user['id'] == str(user_id):
+            user['reset_token'] = ''
+            user['reset_expiry'] = ''
+            updated = True
+            break
+
+    if updated:
+        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
+            writer.writeheader()
+            writer.writerows(users)
+        return True
+    return False
+
+def get_user_by_reset_token(token):
+    if not os.path.exists(USERS_CSV):
+        return None
+    with open(USERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row['reset_token'] == token:
+                return row
+    return None
+
+def confirm_user_email(user_id):
+    if not os.path.exists(USERS_CSV):
+        return False
+    users = []
+    with open(USERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        users = list(reader)
+
+    updated = False
+    for user in users:
+        if user['id'] == str(user_id):
+            user['is_email_confirmed'] = 'True'
+            updated = True
+            break
+
+    if updated:
+        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
+            writer.writeheader()
+            writer.writerows(users)
+        return True
+    return False
+
+def is_user_email_confirmed(user_id):
+    user = get_user_by_id(user_id)
+    return user and user.get('is_email_confirmed') == 'True'
+
+def update_user_password(user_id, new_hash):
+    if not os.path.exists(USERS_CSV):
+        return False
+    users = []
+    with open(USERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        users = list(reader)
+
+    updated = False
+    for user in users:
+        if user['id'] == str(user_id):
+            user['password_hash'] = new_hash
+            updated = True
+            break
+
+    if updated:
+        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
+            writer.writeheader()
+            writer.writerows(users)
         return True
     return False

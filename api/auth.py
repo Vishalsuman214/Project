@@ -1,8 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, login_required, logout_user, current_user
-from api.csv_handler import add_user, get_user_by_email, get_user_by_id, update_user_email_credentials
-from api.email_service import send_test_email
+from api.csv_handler import add_user, get_user_by_email, get_user_by_id, update_user_email_credentials, generate_reset_token, set_reset_token, clear_reset_token, get_user_by_reset_token, confirm_user_email, is_user_email_confirmed, update_user_password
+from api.email_service import send_test_email, send_password_reset_email, send_email_confirmation_otp
+import uuid
+import random
+from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -54,16 +57,37 @@ def register():
         password_hash = generate_password_hash(password, method='scrypt')
         user_id = add_user(username, email, password_hash)
 
-        set_auth_notification('Account created successfully! Please log in.', 'success')
+        set_auth_notification('Account created successfully! Please log in and confirm your email.', 'success')
         return redirect(url_for('auth.login'))
     
     return render_template('register.html')
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user_data = get_user_by_email(email)
+        if user_data:
+            token = generate_reset_token()
+            expiry = datetime.now() + timedelta(hours=1)
+            set_reset_token(user_data['id'], token, expiry)
+            success = send_password_reset_email(user_data['email'], token, user_data['username'])
+            if success:
+                set_auth_notification('Password reset link sent to your email.', 'success')
+            else:
+                set_auth_notification('Password reset unsuccessful - email not sent.', 'error')
+        else:
+            set_auth_notification('If the email exists, a reset link has been sent.', 'info')  # Don't reveal if email exists
+        return redirect(url_for('auth.login'))
+    
+    return render_template('forgot_password.html')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        otp = request.form.get('otp')
         
         user_data = get_user_by_email(email)
         
@@ -74,13 +98,106 @@ def login():
                 email=user_data['email'],
                 password_hash=user_data['password_hash']
             )
-            login_user(user)
-            return redirect(url_for('reminders.dashboard'))
+            
+            if not is_user_email_confirmed(user_data['id']):
+                # Send OTP
+                otp_code = str(random.randint(100000, 999999))
+                session['otp'] = otp_code
+                session['otp_user_id'] = user_data['id']
+                session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
+                success = send_email_confirmation_otp(user_data['email'], otp_code, user_data['username'])
+                if not success:
+                    set_auth_notification('Login unsuccessful - confirmation email not sent.', 'error')
+                    return redirect(url_for('auth.login'))
+                session['awaiting_otp'] = True
+                return render_template('login.html', get_auth_notification=lambda: get_auth_notification(), awaiting_otp=True)
+            else:
+                # Already confirmed, login
+                login_user(user)
+                return redirect(url_for('reminders.dashboard'))
         else:
             set_auth_notification('Invalid email or password', 'error')
     
     notification = get_auth_notification()
-    return render_template('login.html', get_auth_notification=lambda: notification)
+    awaiting_otp = session.get('awaiting_otp', False)
+    return render_template('login.html', get_auth_notification=lambda: notification, awaiting_otp=awaiting_otp)
+
+@auth_bp.route('/confirm-otp', methods=['POST'])
+def confirm_otp():
+    otp = request.form.get('otp')
+    stored_otp = session.get('otp')
+    user_id = session.get('otp_user_id')
+    expiry_str = session.get('otp_expiry')
+    
+    if not stored_otp or not user_id or not expiry_str:
+        set_auth_notification('OTP session expired.', 'error')
+        return redirect(url_for('auth.login'))
+    
+    expiry = datetime.strptime(expiry_str, '%Y-%m-%d %H:%M:%S')
+    if datetime.now() > expiry:
+        set_auth_notification('OTP expired.', 'error')
+        session.pop('otp', None)
+        session.pop('otp_user_id', None)
+        session.pop('otp_expiry', None)
+        session.pop('awaiting_otp', None)
+        return redirect(url_for('auth.login'))
+    
+    if otp == stored_otp:
+        confirm_user_email(user_id)
+        user_data = get_user_by_id(user_id)
+        user = User(
+            id=user_data['id'],
+            username=user_data['username'],
+            email=user_data['email'],
+            password_hash=user_data['password_hash']
+        )
+        login_user(user)
+        session.pop('otp', None)
+        session.pop('otp_user_id', None)
+        session.pop('otp_expiry', None)
+        session.pop('awaiting_otp', None)
+        return redirect(url_for('reminders.dashboard'))
+    else:
+        set_auth_notification('Invalid OTP.', 'error')
+        return render_template('login.html', get_auth_notification=lambda: get_auth_notification(), awaiting_otp=True)
+
+@auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    user_data = get_user_by_reset_token(token)
+    if not user_data:
+        set_auth_notification('Invalid or expired reset token.', 'error')
+        return redirect(url_for('auth.login'))
+    
+    expiry_str = user_data.get('reset_expiry')
+    if expiry_str:
+        expiry = datetime.strptime(expiry_str, '%Y-%m-%d %H:%M:%S')
+        if datetime.now() > expiry:
+            clear_reset_token(user_data['id'])
+            set_auth_notification('Reset token expired.', 'error')
+            return redirect(url_for('auth.login'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        if password != confirm_password:
+            set_auth_notification('Passwords do not match.', 'error')
+            return render_template('reset_password.html', token=token)
+        
+        if len(password) < 6:
+            set_auth_notification('Password must be at least 6 characters.', 'error')
+            return render_template('reset_password.html', token=token)
+        
+        password_hash = generate_password_hash(password, method='scrypt')
+        success = update_user_password(user_data['id'], password_hash)
+        if success:
+            clear_reset_token(user_data['id'])
+            set_auth_notification('Password reset successfully. Please log in.', 'success')
+            return redirect(url_for('auth.login'))
+        else:
+            set_auth_notification('Failed to reset password.', 'error')
+            return render_template('reset_password.html', token=token)
+    
+    return render_template('reset_password.html', token=token)
 
 @auth_bp.route('/logout')
 @login_required
@@ -117,6 +234,6 @@ def email_credentials():
             else:
                 set_auth_notification('Please provide both email and app password.', 'error')
         return redirect(url_for('auth.email_credentials'))
-    current_email = user_data.get('email', '') if user_data else ''
-    current_app_password = user_data.get('app_password', '') if user_data else ''
+    current_email = user_data.get('reminder_email', '') if user_data else ''
+    current_app_password = user_data.get('reminder_app_password', '') if user_data else ''
     return render_template('email_credentials.html', current_email=current_email, current_app_password=current_app_password)
