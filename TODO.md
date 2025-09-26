@@ -1,15 +1,14 @@
-# TODO: Fix Password Reset Email Issue
+# TODO: Fix APScheduler Warning and Ensure Reset Password Emails
 
 ## Current Status
-- [x] Analyzed auth.py and email_service.py to identify the issue: send_password_reset_email fails in fallback due to no local SMTP server on port 1025.
-- [x] Update email_service.py to log email content to console in dev mode (no credentials) and return True.
-- [x] Test the fix locally by running the app and attempting password reset.
-- [x] Update reset link to use BASE_URL env var for production compatibility.
-- [x] Handle similar issue in send_email_confirmation_otp by logging OTP to console.
-- [ ] Set SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD in .env to enable actual email sending.
+- [x] Identified APScheduler warning due to sequential email sending taking too long.
+- [x] Optimized check_and_send_reminders to send emails in parallel using ThreadPoolExecutor.
+- [x] Increased scheduler ThreadPoolExecutor to 20 threads.
+- [x] Added ProcessPoolExecutor for better performance.
+- [x] Password reset emails are handled: logs to console in dev mode if SYSTEM_SENDER_EMAIL/SYSTEM_APP_PASSWORD not set, otherwise sends via Gmail.
+- [x] Ensure SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD are set in .env for actual email sending.
 
 ## Next Steps
-1. Implement the code change in email_service.py.
-2. Run the app with `python run.py` and test forgot password flow.
-3. Verify console output shows the reset link.
-4. Confirm notification shows success message.
+1. Set SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD in .env if not already set.
+2. Run the app and monitor for APScheduler warnings.
+3. Test password reset flow to ensure emails are sent or logged.

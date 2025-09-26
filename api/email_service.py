@@ -3,6 +3,7 @@ import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+import concurrent.futures
 from api.csv_handler import get_all_reminders, mark_reminder_completed, get_user_by_id
 
 # Email configuration (should be moved to environment variables in production)
@@ -111,21 +112,23 @@ def check_and_send_reminders(app):
     """Check for reminders that are due and send emails"""
     with app.app_context():
         current_time = datetime.now()
-        
+
         # Get all reminders
         all_reminders = get_all_reminders()
-        
+
+        # Collect reminders to send
+        reminders_to_send = []
         for reminder in all_reminders:
             # Skip completed reminders
             if reminder['is_completed'] == 'True':
                 continue
-                
+
             # Parse reminder time
             try:
                 reminder_time = datetime.strptime(reminder['reminder_time'], '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 continue
-                
+
             # Check if reminder is due
             if reminder_time <= current_time:
                 user = get_user_by_id(reminder['user_id'])
@@ -138,21 +141,36 @@ def check_and_send_reminders(app):
                     # Use custom recipient email if provided, otherwise use user's email
                     recipient_email = reminder.get('recipient_email', '') or user['email']
 
-                    # Send email
-                    success = send_reminder_email(
-                        recipient_email,
-                        reminder['title'],
-                        reminder['description'],
-                        reminder_time,
-                        reminder['user_id']
-                    )
+                    reminders_to_send.append((reminder, recipient_email, reminder_time, user))
 
-                    if success:
-                        # Mark reminder as completed
-                        mark_reminder_completed(reminder['id'])
-                        print(f"✅ Reminder '{reminder['title']}' sent to {recipient_email} and marked as completed")
-                    else:
-                        print(f"❌ Failed to send reminder '{reminder['title']}' to {recipient_email}")
+        # Send emails in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [
+                executor.submit(send_reminder_and_mark, reminder, recipient_email, reminder_time, user)
+                for reminder, recipient_email, reminder_time, user in reminders_to_send
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"❌ Error in sending reminder: {e}")
+
+def send_reminder_and_mark(reminder, recipient_email, reminder_time, user):
+    """Send reminder email and mark as completed"""
+    success = send_reminder_email(
+        recipient_email,
+        reminder['title'],
+        reminder['description'],
+        reminder_time,
+        reminder['user_id']
+    )
+
+    if success:
+        # Mark reminder as completed
+        mark_reminder_completed(reminder['id'])
+        print(f"✅ Reminder '{reminder['title']}' sent to {recipient_email} and marked as completed")
+    else:
+        print(f"❌ Failed to send reminder '{reminder['title']}' to {recipient_email}")
 
 def send_password_reset_email(user_email, reset_token, user_name):
     """Send password reset email with link"""
