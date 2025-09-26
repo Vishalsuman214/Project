@@ -46,11 +46,11 @@ def create_app():
     # Set up background scheduler for email reminders
     scheduler = BackgroundScheduler()
 
-    # Schedule check_and_send_reminders to run every minute
+    # Schedule check_and_send_reminders to run every 5 minutes
     scheduler.add_job(
         func=check_and_send_reminders,
         args=[app],
-        trigger=IntervalTrigger(minutes=1),
+        trigger=IntervalTrigger(minutes=5),
         id='check_reminders',
         name='Check and send due reminders',
         replace_existing=True
