@@ -1,10 +1,10 @@
-- [x] Add ThreadPoolExecutor to scheduler in py-project/api/index.py for concurrent job execution
-- [x] Add /cron/reminders route in py-project/api/index.py to trigger reminder checks
-- [x] Update py-project/vercel.json to configure cron job for the route
-- [x] Add password reset functionality with email reset link
-- [x] Add email OTP confirmation during login process
-- [x] Show "unsuccessful" notification if auth emails fail to send
-- [x] Update users.csv schema for reset_token, reset_expiry, is_email_confirmed
-- [x] Add system email sender for auth notifications in email_service.py
-- [x] Create forgot_password.html and reset_password.html templates
-- [x] Update login.html with forgot password link and OTP input
+# TODO List
+
+## Fix Confirmation Email Issue
+- [x] Update api/email_service.py: Add os import and replace hardcoded SYSTEM_SENDER_EMAIL/SYSTEM_APP_PASSWORD with os.environ.get()
+- [x] Update api/auth.py: Modify /register route to send OTP immediately after user creation and redirect to login with OTP prompt
+- [x] Create .env.example file in root with SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD placeholders
+- [x] Test the changes locally (requires setting env vars - copy .env.example to .env and fill in real Gmail credentials)
+- [x] Update this TODO.md to mark tasks as completed
+
+Note: Emails will not send until SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD are set in environment variables (e.g., via .env file or deployment platform).

@@ -1,4 +1,5 @@
 import smtplib
+import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
@@ -10,9 +11,9 @@ DEFAULT_SENDER_EMAIL = None
 DEFAULT_APP_PASSWORD = None
 
 # System email credentials for auth notifications (password reset, confirmations)
-# Replace with your app's Gmail and app password
-SYSTEM_SENDER_EMAIL = 'your-app@gmail.com'  # Replace with actual
-SYSTEM_APP_PASSWORD = 'your-app-password'   # Replace with actual
+# Load from environment variables
+SYSTEM_SENDER_EMAIL = os.environ.get('SYSTEM_SENDER_EMAIL')
+SYSTEM_APP_PASSWORD = os.environ.get('SYSTEM_APP_PASSWORD')
 
 def send_reminder_email(receiver_email, reminder_title, reminder_description, reminder_time, user_id=None):
     """Send a reminder email to the specified recipient"""

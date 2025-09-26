@@ -57,7 +57,17 @@ def register():
         password_hash = generate_password_hash(password, method='scrypt')
         user_id = add_user(username, email, password_hash)
 
-        set_auth_notification('Account created successfully! Please log in and confirm your email.', 'success')
+        # Send confirmation OTP immediately
+        otp_code = str(random.randint(100000, 999999))
+        session['otp'] = otp_code
+        session['otp_user_id'] = user_id
+        session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
+        success = send_email_confirmation_otp(email, otp_code, username)
+        if success:
+            session['awaiting_otp'] = True
+            set_auth_notification('Account created successfully! Check your email for the confirmation code.', 'success')
+        else:
+            set_auth_notification('Account created, but confirmation email could not be sent. Please contact support.', 'warning')
         return redirect(url_for('auth.login'))
     
     return render_template('register.html')
