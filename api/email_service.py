@@ -162,7 +162,8 @@ def send_password_reset_email(user_email, reset_token, user_name):
         msg["To"] = user_email
         msg["Subject"] = "Password Reset for Reminder App"
 
-        reset_link = f"http://localhost:5000/reset-password/{reset_token}"  # Adjust URL as needed
+        base_url = os.environ.get('BASE_URL', 'http://localhost:5000')
+        reset_link = f"{base_url.rstrip('/')}/reset-password/{reset_token}"
         body = f"""
         Hello {user_name},
 
@@ -190,12 +191,13 @@ def send_password_reset_email(user_email, reset_token, user_name):
             server.quit()
             print(f"✅ Password reset email sent to {user_email}")
         else:
-            # Fallback to local SMTP for development (prints to console)
-            print("⚠️ System email credentials not set, using local SMTP for development")
-            server = smtplib.SMTP("localhost", 1025)
-            server.sendmail("noreply@reminderapp.local", user_email, msg.as_string())
-            server.quit()
-            print(f"✅ Password reset email 'sent' to {user_email} via local SMTP (check console)")
+            # Fallback for development: log email content to console
+            print("⚠️ System email credentials not set, logging email content for development")
+            print(f"📧 Password reset email for {user_email}:")
+            print(f"Subject: {msg['Subject']}")
+            print(f"Body:\n{body}")
+            print(f"Reset Link: {reset_link}")
+            print("✅ Password reset email logged (copy the link above to reset password)")
 
         return True
 
@@ -233,12 +235,12 @@ def send_email_confirmation_otp(user_email, otp, user_name):
             server.quit()
             print(f"✅ OTP email sent to {user_email}")
         else:
-            # Fallback to local SMTP for development (prints to console)
-            print("⚠️ System email credentials not set, using local SMTP for development")
-            server = smtplib.SMTP("localhost", 1025)
-            server.sendmail("noreply@reminderapp.local", user_email, msg.as_string())
-            server.quit()
-            print(f"✅ OTP email 'sent' to {user_email} via local SMTP (check console)")
+            # Fallback for development: log email content to console
+            print("⚠️ System email credentials not set, logging email content for development")
+            print(f"📧 OTP email for {user_email}:")
+            print(f"Subject: {msg['Subject']}")
+            print(f"Body:\n{body}")
+            print("✅ OTP email logged (use the OTP above for confirmation)")
 
         return True
 
