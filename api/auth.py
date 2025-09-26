@@ -83,7 +83,7 @@ def forgot_password():
             set_reset_token(user_data['id'], token, expiry)
             success = send_password_reset_email(user_data['email'], token, user_data['username'])
             if success:
-                set_auth_notification('Password reset link sent to your email.', 'success')
+                set_auth_notification('If the email exists, a reset link has been sent.', 'info')
             else:
                 set_auth_notification('Password reset unsuccessful - email not sent.', 'error')
         else:

@@ -157,12 +157,8 @@ def check_and_send_reminders(app):
 def send_password_reset_email(user_email, reset_token, user_name):
     """Send password reset email with link"""
     try:
-        if not SYSTEM_SENDER_EMAIL or not SYSTEM_APP_PASSWORD:
-            print("❌ System email credentials not set for password reset")
-            return False
-
         msg = MIMEMultipart()
-        msg["From"] = SYSTEM_SENDER_EMAIL
+        msg["From"] = SYSTEM_SENDER_EMAIL or "noreply@reminderapp.local"
         msg["To"] = user_email
         msg["Subject"] = "Password Reset for Reminder App"
 
@@ -185,13 +181,22 @@ def send_password_reset_email(user_email, reset_token, user_name):
 
         msg.attach(MIMEText(body, "plain"))
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(SYSTEM_SENDER_EMAIL, SYSTEM_APP_PASSWORD)
-        server.sendmail(SYSTEM_SENDER_EMAIL, user_email, msg.as_string())
-        server.quit()
+        if SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD:
+            # Use Gmail SMTP
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(SYSTEM_SENDER_EMAIL, SYSTEM_APP_PASSWORD)
+            server.sendmail(SYSTEM_SENDER_EMAIL, user_email, msg.as_string())
+            server.quit()
+            print(f"✅ Password reset email sent to {user_email}")
+        else:
+            # Fallback to local SMTP for development (prints to console)
+            print("⚠️ System email credentials not set, using local SMTP for development")
+            server = smtplib.SMTP("localhost", 1025)
+            server.sendmail("noreply@reminderapp.local", user_email, msg.as_string())
+            server.quit()
+            print(f"✅ Password reset email 'sent' to {user_email} via local SMTP (check console)")
 
-        print(f"✅ Password reset email sent to {user_email}")
         return True
 
     except Exception as e:
@@ -201,12 +206,8 @@ def send_password_reset_email(user_email, reset_token, user_name):
 def send_email_confirmation_otp(user_email, otp, user_name):
     """Send email confirmation OTP"""
     try:
-        if not SYSTEM_SENDER_EMAIL or not SYSTEM_APP_PASSWORD:
-            print("❌ System email credentials not set for OTP")
-            return False
-
         msg = MIMEMultipart()
-        msg["From"] = SYSTEM_SENDER_EMAIL
+        msg["From"] = SYSTEM_SENDER_EMAIL or "noreply@reminderapp.local"
         msg["To"] = user_email
         msg["Subject"] = "Email Confirmation Code for Reminder App"
 
@@ -223,13 +224,22 @@ def send_email_confirmation_otp(user_email, otp, user_name):
 
         msg.attach(MIMEText(body, "plain"))
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(SYSTEM_SENDER_EMAIL, SYSTEM_APP_PASSWORD)
-        server.sendmail(SYSTEM_SENDER_EMAIL, user_email, msg.as_string())
-        server.quit()
+        if SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD:
+            # Use Gmail SMTP
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(SYSTEM_SENDER_EMAIL, SYSTEM_APP_PASSWORD)
+            server.sendmail(SYSTEM_SENDER_EMAIL, user_email, msg.as_string())
+            server.quit()
+            print(f"✅ OTP email sent to {user_email}")
+        else:
+            # Fallback to local SMTP for development (prints to console)
+            print("⚠️ System email credentials not set, using local SMTP for development")
+            server = smtplib.SMTP("localhost", 1025)
+            server.sendmail("noreply@reminderapp.local", user_email, msg.as_string())
+            server.quit()
+            print(f"✅ OTP email 'sent' to {user_email} via local SMTP (check console)")
 
-        print(f"✅ OTP email sent to {user_email}")
         return True
 
     except Exception as e:
