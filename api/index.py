@@ -50,28 +50,29 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(reminders_bp)
 
-    # Set up background scheduler for email reminders
-    scheduler = BackgroundScheduler(executors={
-        'default': ThreadPoolExecutor(20),
-        'processpool': ProcessPoolExecutor(5)
-    })
+    # Set up background scheduler for email reminders (only for local development, not Vercel)
+    if not os.environ.get('VERCEL'):
+        scheduler = BackgroundScheduler(executors={
+            'default': ThreadPoolExecutor(20),
+            'processpool': ProcessPoolExecutor(5)
+        })
 
-    # Schedule check_and_send_reminders to run every 5 minutes
-    scheduler.add_job(
-        func=check_and_send_reminders,
-        args=[app],
-        trigger=IntervalTrigger(minutes=5),
-        id='check_reminders',
-        name='Check and send due reminders',
-        replace_existing=True
-    )
+        # Schedule check_and_send_reminders to run every 5 minutes
+        scheduler.add_job(
+            func=check_and_send_reminders,
+            args=[app],
+            trigger=IntervalTrigger(minutes=5),
+            id='check_reminders',
+            name='Check and send due reminders',
+            replace_existing=True
+        )
 
-    # Start the scheduler
-    scheduler.start()
+        # Start the scheduler
+        scheduler.start()
 
-    # Shut down the scheduler when exiting the app
-    import atexit
-    atexit.register(lambda: scheduler.shutdown())
+        # Shut down the scheduler when exiting the app
+        import atexit
+        atexit.register(lambda: scheduler.shutdown())
 
     return app
 
