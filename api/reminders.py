@@ -10,8 +10,12 @@ reminders_bp = Blueprint('reminders', __name__)
 @reminders_bp.route('/dashboard')
 @login_required
 def dashboard():
-    # Get user's reminders
-    reminders = get_reminders_by_user_id(current_user.id)
+    # Get user's reminders with error handling
+    try:
+        reminders = get_reminders_by_user_id(str(current_user.id))
+    except Exception as e:
+        print(f"Error fetching reminders for user {current_user.id}: {e}")
+        reminders = []
     return render_template('dashboard.html', reminders=reminders)
 
 @reminders_bp.route('/create_reminder', methods=['GET', 'POST'])
