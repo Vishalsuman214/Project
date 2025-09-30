@@ -138,24 +138,24 @@ def check_and_send_reminders(app):
                 continue
 
             # Check if reminder is due
-            if reminder_time <= current_time:
-                print(f"   ✅ Reminder is due")
-                user = get_user_by_id(reminder['user_id'])
-                if user:
-                    # Check if user has set email credentials
-                    if not user.get('reminder_email') or not user.get('reminder_app_password'):
-                        print(f"⚠️  Skipping reminder '{reminder['title']}' - user {reminder['user_id']} has not set email credentials")
+                if reminder_time <= current_time:
+                    print(f"   ✅ Reminder is due")
+                    user = get_user_by_id(str(reminder['user_id']))
+                    if user:
+                        # Check if user has set email credentials
+                        if not user.get('reminder_email') or not user.get('reminder_app_password'):
+                            print(f"⚠️  Skipping reminder '{reminder['title']}' - user {reminder['user_id']} has not set email credentials")
+                            continue
+
+                        # Use custom recipient email if provided, otherwise use user's email
+                        recipient_email = reminder.get('recipient_email', '') or user['email']
+                        print(f"   📧 Will send to {recipient_email}")
+
+                        reminders_to_send.append((reminder, recipient_email, reminder_time, user))
+                    else:
+                        print(f"   ❌ User {reminder['user_id']} not found")
+                        # Add error handling to avoid crash
                         continue
-
-                    # Use custom recipient email if provided, otherwise use user's email
-                    recipient_email = reminder.get('recipient_email', '') or user['email']
-                    print(f"   📧 Will send to {recipient_email}")
-
-                    reminders_to_send.append((reminder, recipient_email, reminder_time, user))
-                else:
-                    print(f"   ❌ User {reminder['user_id']} not found")
-                    # Add error handling to avoid crash
-                    continue
             else:
                 print(f"   ⏰ Reminder not yet due")
 
