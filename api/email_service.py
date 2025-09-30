@@ -154,6 +154,8 @@ def check_and_send_reminders(app):
                     reminders_to_send.append((reminder, recipient_email, reminder_time, user))
                 else:
                     print(f"   ❌ User {reminder['user_id']} not found")
+                    # Add error handling to avoid crash
+                    continue
             else:
                 print(f"   ⏰ Reminder not yet due")
 
