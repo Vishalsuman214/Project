@@ -33,10 +33,14 @@ def create_reminder():
             flash('Invalid date/time format')
             return redirect(url_for('reminders.create_reminder'))
         
-        # Create new reminder using CSV
-        add_reminder(current_user.id, title, description, reminder_time, recipient_email)
+        try:
+            # Create new reminder using CSV
+            add_reminder(str(current_user.id), title, description, reminder_time, recipient_email)
+            flash('Reminder created successfully!')
+        except Exception as e:
+            print(f"Error creating reminder for user {current_user.id}: {e}")
+            flash('An error occurred while creating the reminder.')
         
-        flash('Reminder created successfully!')
         return redirect(url_for('reminders.dashboard'))
     
     return render_template('create_reminder.html')
