@@ -123,6 +123,30 @@ def get_next_user_id():
             ids = [int(row['id']) for row in reader]
             return max(ids) + 1 if ids else 1
 
+def get_next_reminder_id():
+    if USE_SQLITE:
+        init_db()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT MAX(id) FROM reminders")
+        max_id = c.fetchone()[0]
+        conn.close()
+        return (max_id + 1) if max_id else 1
+    elif DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        c.execute("SELECT MAX(id) FROM reminders")
+        max_id = c.fetchone()[0]
+        conn.close()
+        return (max_id + 1) if max_id else 1
+    else:
+        if not os.path.exists(REMINDERS_CSV):
+            return 1
+        with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            ids = [int(row['id']) for row in reader]
+            return max(ids) + 1 if ids else 1
+
 def get_user_by_email(email):
     if USE_SQLITE:
         init_db()
@@ -339,7 +363,7 @@ def add_reminder(user_id, title, description, reminder_time, recipient_email=Non
         conn.commit()
         conn.close()
         return reminder_id
-    else:
+    elif DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
         c.execute(
@@ -349,6 +373,22 @@ def add_reminder(user_id, title, description, reminder_time, recipient_email=Non
         reminder_id = c.fetchone()[0]
         conn.commit()
         conn.close()
+        return reminder_id
+    else:
+        # Use CSV
+        reminder_id = get_next_reminder_id()
+        with open(REMINDERS_CSV, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                reminder_id,
+                user_id,
+                title,
+                description or '',
+                reminder_time.strftime('%Y-%m-%d %H:%M:%S'),
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'False',
+                recipient_email or ''
+            ])
         return reminder_id
 
 def get_reminders_by_user_id(user_id):
@@ -361,13 +401,24 @@ def get_reminders_by_user_id(user_id):
         rows = c.fetchall()
         conn.close()
         return [dict(row) for row in rows]
-    else:
+    elif DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         c = conn.cursor()
         c.execute("SELECT * FROM reminders WHERE user_id = %s", (user_id,))
         rows = c.fetchall()
         conn.close()
         return [dict(row) for row in rows]
+    else:
+        # Use CSV
+        try:
+            if not os.path.exists(REMINDERS_CSV):
+                return []
+            with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                return [row for row in reader if row.get('user_id') == str(user_id)]
+        except Exception as e:
+            print(f"Error reading reminders CSV: {e}")
+            return []
 
 def get_reminder_by_id(reminder_id):
     init_db()
@@ -379,13 +430,23 @@ def get_reminder_by_id(reminder_id):
         row = c.fetchone()
         conn.close()
         return dict(row) if row else None
-    else:
+    elif DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         c = conn.cursor()
         c.execute("SELECT * FROM reminders WHERE id = %s", (reminder_id,))
         row = c.fetchone()
         conn.close()
         return dict(row) if row else None
+    else:
+        # Use CSV
+        if not os.path.exists(REMINDERS_CSV):
+            return None
+        with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['id'] == str(reminder_id):
+                    return row
+        return None
 
 def update_reminder(reminder_id, title, description, reminder_time, recipient_email=None):
     init_db()
@@ -401,7 +462,7 @@ def update_reminder(reminder_id, title, description, reminder_time, recipient_em
             conn.commit()
         conn.close()
         return updated
-    else:
+    elif DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
         c.execute(
@@ -412,6 +473,34 @@ def update_reminder(reminder_id, title, description, reminder_time, recipient_em
         if updated:
             conn.commit()
         conn.close()
+        return updated
+    else:
+        # Use CSV
+        if not os.path.exists(REMINDERS_CSV):
+            return False
+        # Read all reminders
+        reminders = []
+        with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            reminders = list(reader)
+
+        # Update the specific reminder
+        updated = False
+        for reminder in reminders:
+            if reminder['id'] == str(reminder_id):
+                reminder['title'] = title
+                reminder['description'] = description or ''
+                reminder['reminder_time'] = reminder_time.strftime('%Y-%m-%d %H:%M:%S')
+                reminder['recipient_email'] = recipient_email or ''
+                updated = True
+                break
+
+        if updated:
+            # Write back all reminders
+            with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
+                writer.writeheader()
+                writer.writerows(reminders)
         return updated
 
 def delete_reminder(reminder_id):
@@ -425,7 +514,7 @@ def delete_reminder(reminder_id):
             conn.commit()
         conn.close()
         return deleted
-    else:
+    elif DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
         c.execute("DELETE FROM reminders WHERE id = %s", (reminder_id,))
@@ -434,6 +523,28 @@ def delete_reminder(reminder_id):
             conn.commit()
         conn.close()
         return deleted
+    else:
+        # Use CSV
+        if not os.path.exists(REMINDERS_CSV):
+            return False
+        # Read all reminders
+        reminders = []
+        with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            reminders = list(reader)
+
+        # Find and remove the specific reminder
+        original_length = len(reminders)
+        reminders = [r for r in reminders if r['id'] != str(reminder_id)]
+
+        if len(reminders) < original_length:
+            # Write back all reminders
+            with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
+                writer.writeheader()
+                writer.writerows(reminders)
+            return True
+        return False
 
 def generate_reset_token():
     return str(uuid.uuid4())
