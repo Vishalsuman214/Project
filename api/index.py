@@ -6,7 +6,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from api.auth import User
-from api.csv_handler import get_user_by_id, migrate_csv_to_sqlite
+from api.csv_handler import get_user_by_id, migrate_csv_to_db
 from api.email_service import check_and_send_reminders
 
 # Initialize extensions
@@ -15,8 +15,8 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__, template_folder='../templates')
 
-    # Migrate data from CSV to SQLite if needed
-    migrate_csv_to_sqlite()
+    # Migrate data from CSV to database if needed
+    migrate_csv_to_db()
 
     @login_manager.user_loader
     def load_user(user_id):
