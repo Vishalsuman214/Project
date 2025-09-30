@@ -402,12 +402,25 @@ def get_reminders_by_user_id(user_id):
         conn.close()
         return [dict(row) for row in rows]
     elif DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-        c = conn.cursor()
-        c.execute("SELECT * FROM reminders WHERE user_id = %s", (user_id,))
-        rows = c.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+        try:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            c = conn.cursor()
+            c.execute("SELECT * FROM reminders WHERE user_id = %s", (user_id,))
+            rows = c.fetchall()
+            conn.close()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Error connecting to database for reminders: {e}, falling back to CSV")
+            # Fall back to CSV
+            try:
+                if not os.path.exists(REMINDERS_CSV):
+                    return []
+                with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    return [row for row in reader if row.get('user_id') == str(user_id)]
+            except Exception as e:
+                print(f"Error reading reminders CSV: {e}")
+                return []
     else:
         # Use CSV
         try:
