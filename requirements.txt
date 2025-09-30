@@ -4,3 +4,4 @@ apscheduler
 email-validator
 python-dotenv
 gunicorn
+psycopg2-binary

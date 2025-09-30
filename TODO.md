@@ -1,11 +1,12 @@
-- [x] Update get_all_reminders() to use SQLite
-- [x] Update mark_reminder_completed() to use SQLite
-- [x] Update add_reminder() to use SQLite
-- [x] Update get_reminders_by_user_id() to use SQLite
-- [x] Update get_reminder_by_id() to use SQLite
-- [x] Update update_reminder() to use SQLite
-- [x] Update delete_reminder() to use SQLite
-- [x] Ensure init_sqlite() is called in relevant functions
+- [x] Update get_all_reminders() to use SQLite/PostgreSQL
+- [x] Update mark_reminder_completed() to use SQLite/PostgreSQL
+- [x] Update add_reminder() to use SQLite/PostgreSQL
+- [x] Update get_reminders_by_user_id() to use SQLite/PostgreSQL
+- [x] Update get_reminder_by_id() to use SQLite/PostgreSQL
+- [x] Update update_reminder() to use SQLite/PostgreSQL
+- [x] Update delete_reminder() to use SQLite/PostgreSQL
+- [x] Update migrate_csv_to_db() to work with both DB types
+- [x] Update index.py to call migrate_csv_to_db()
 - [x] Add migration from CSV to SQLite
 - [x] Call migration on app start
 - [x] Add detailed logging to check_and_send_reminders for debugging
