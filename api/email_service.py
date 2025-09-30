@@ -31,6 +31,8 @@ def send_reminder_email(receiver_email, reminder_title, reminder_description, re
         # Check if credentials are set
         if not sender_email or not app_password:
             print(f"❌ Email credentials not set for user {user_id}. Please set email credentials in settings.")
+            print(f"   sender_email: {'set' if sender_email else 'not set'}")
+            print(f"   app_password: {'set' if app_password else 'not set'}")
             return False
 
         # Create email
@@ -112,13 +114,17 @@ def check_and_send_reminders(app):
     """Check for reminders that are due and send emails"""
     with app.app_context():
         current_time = datetime.now()
+        print(f"🔄 Checking reminders at {current_time}")
 
         # Get all reminders
         all_reminders = get_all_reminders()
+        print(f"📋 Found {len(all_reminders)} total reminders")
 
         # Collect reminders to send
         reminders_to_send = []
         for reminder in all_reminders:
+            print(f"🔍 Checking reminder '{reminder['title']}' - Completed: {reminder['is_completed']}")
+
             # Skip completed reminders
             if reminder['is_completed'] == 'True':
                 continue
@@ -126,11 +132,14 @@ def check_and_send_reminders(app):
             # Parse reminder time
             try:
                 reminder_time = datetime.strptime(reminder['reminder_time'], '%Y-%m-%d %H:%M:%S')
+                print(f"   Reminder time: {reminder_time}, Current time: {current_time}")
             except ValueError:
+                print(f"   ❌ Invalid reminder time format: {reminder['reminder_time']}")
                 continue
 
             # Check if reminder is due
             if reminder_time <= current_time:
+                print(f"   ✅ Reminder is due")
                 user = get_user_by_id(reminder['user_id'])
                 if user:
                     # Check if user has set email credentials
@@ -140,8 +149,13 @@ def check_and_send_reminders(app):
 
                     # Use custom recipient email if provided, otherwise use user's email
                     recipient_email = reminder.get('recipient_email', '') or user['email']
+                    print(f"   📧 Will send to {recipient_email}")
 
                     reminders_to_send.append((reminder, recipient_email, reminder_time, user))
+                else:
+                    print(f"   ❌ User {reminder['user_id']} not found")
+            else:
+                print(f"   ⏰ Reminder not yet due")
 
         # Send emails in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -211,6 +225,8 @@ def send_password_reset_email(user_email, reset_token, user_name):
         else:
             # Fallback for development: log email content to console
             print("⚠️ System email credentials not set, logging email content for development")
+            print(f"   SYSTEM_SENDER_EMAIL: {'set' if SYSTEM_SENDER_EMAIL else 'not set'}")
+            print(f"   SYSTEM_APP_PASSWORD: {'set' if SYSTEM_APP_PASSWORD else 'not set'}")
             print(f"📧 Password reset email for {user_email}:")
             print(f"Subject: {msg['Subject']}")
             print(f"Body:\n{body}")
@@ -255,6 +271,8 @@ def send_email_confirmation_otp(user_email, otp, user_name):
         else:
             # Fallback for development: log email content to console
             print("⚠️ System email credentials not set, logging email content for development")
+            print(f"   SYSTEM_SENDER_EMAIL: {'set' if SYSTEM_SENDER_EMAIL else 'not set'}")
+            print(f"   SYSTEM_APP_PASSWORD: {'set' if SYSTEM_APP_PASSWORD else 'not set'}")
             print(f"📧 OTP email for {user_email}:")
             print(f"Subject: {msg['Subject']}")
             print(f"Body:\n{body}")

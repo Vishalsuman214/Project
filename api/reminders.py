@@ -43,7 +43,7 @@ def edit_reminder(reminder_id):
     reminder = get_reminder_by_id(reminder_id)
     
     # Check if reminder exists and belongs to current user
-    if not reminder or reminder['user_id'] != str(current_user.id):
+    if not reminder or reminder['user_id'] != current_user.id:
         flash('You cannot edit this reminder')
         return redirect(url_for('reminders.dashboard'))
     
@@ -73,7 +73,7 @@ def delete_reminder(reminder_id):
     reminder = get_reminder_by_id(reminder_id)
     
     # Check if reminder exists and belongs to current user
-    if not reminder or reminder['user_id'] != str(current_user.id):
+    if not reminder or reminder['user_id'] != current_user.id:
         flash('You cannot delete this reminder')
         return redirect(url_for('reminders.dashboard'))
     

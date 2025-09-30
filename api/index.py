@@ -6,7 +6,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from api.auth import User
-from api.csv_handler import get_user_by_id
+from api.csv_handler import get_user_by_id, migrate_csv_to_sqlite
 from api.email_service import check_and_send_reminders
 
 # Initialize extensions
@@ -14,6 +14,9 @@ login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__, template_folder='../templates')
+
+    # Migrate data from CSV to SQLite if needed
+    migrate_csv_to_sqlite()
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -40,7 +43,9 @@ def create_app():
 
     @app.route('/cron/reminders')
     def cron_reminders():
+        print("🔄 Cron job /cron/reminders triggered")
         check_and_send_reminders(app)
+        print("✅ Cron job /cron/reminders completed")
         return 'Reminders checked', 200
 
     # Register blueprints
@@ -51,7 +56,10 @@ def create_app():
     app.register_blueprint(reminders_bp)
 
     # Set up background scheduler for email reminders (only for local development, not Vercel)
-    if not os.environ.get('VERCEL'):
+    if os.environ.get('VERCEL'):
+        print("⚠️ VERCEL environment detected - background scheduler disabled")
+    else:
+        print("✅ Starting background scheduler for reminders")
         scheduler = BackgroundScheduler(executors={
             'default': ThreadPoolExecutor(20),
             'processpool': ProcessPoolExecutor(5)
@@ -69,6 +77,7 @@ def create_app():
 
         # Start the scheduler
         scheduler.start()
+        print("✅ Background scheduler started - will check reminders every 5 minutes")
 
         # Shut down the scheduler when exiting the app
         import atexit

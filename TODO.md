@@ -1,14 +1,12 @@
-# TODO: Fix APScheduler Warning and Ensure Reset Password Emails
-
-## Current Status
-- [x] Identified APScheduler warning due to sequential email sending taking too long.
-- [x] Optimized check_and_send_reminders to send emails in parallel using ThreadPoolExecutor.
-- [x] Increased scheduler ThreadPoolExecutor to 20 threads.
-- [x] Added ProcessPoolExecutor for better performance.
-- [x] Password reset emails are handled: logs to console in dev mode if SYSTEM_SENDER_EMAIL/SYSTEM_APP_PASSWORD not set, otherwise sends via Gmail.
-- [x] Ensure SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD are set in .env for actual email sending.
-
-## Next Steps
-1. Set SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD in .env if not already set.
-2. Run the app and monitor for APScheduler warnings.
-3. Test password reset flow to ensure emails are sent or logged.
+- [x] Update get_all_reminders() to use SQLite
+- [x] Update mark_reminder_completed() to use SQLite
+- [x] Update add_reminder() to use SQLite
+- [x] Update get_reminders_by_user_id() to use SQLite
+- [x] Update get_reminder_by_id() to use SQLite
+- [x] Update update_reminder() to use SQLite
+- [x] Update delete_reminder() to use SQLite
+- [x] Ensure init_sqlite() is called in relevant functions
+- [x] Add migration from CSV to SQLite
+- [x] Call migration on app start
+- [x] Add detailed logging to check_and_send_reminders for debugging
+- [x] Fix user_id comparison in reminders.py (remove str conversion)
