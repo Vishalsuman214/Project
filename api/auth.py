@@ -113,7 +113,7 @@ def login():
         
         user_data = get_user_by_email(email)
         
-        if user_data and verify_password(password, user_data['password_hash']) and user_data['email_verified'] == 'True':
+        if user_data and verify_password(password, user_data['password_hash']) and user_data['is_email_confirmed'] == 'True':
             user = User(
                 id=user_data['id'],
                 email=user_data['email'],
