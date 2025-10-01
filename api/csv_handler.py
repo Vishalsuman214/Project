@@ -82,7 +82,7 @@ def set_verification_token(email, token):
 
     if updated:
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'email', 'password_hash', 'email_verified', 'verification_token', 'reset_token', 'reset_expiry'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
@@ -109,7 +109,7 @@ def verify_email(token):
 
     if updated:
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'email', 'password_hash', 'email_verified', 'verification_token', 'reset_token', 'reset_expiry'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
@@ -133,7 +133,7 @@ def set_reset_token(email, token):
 
     if updated:
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'email', 'password_hash', 'email_verified', 'verification_token', 'reset_token', 'reset_expiry'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
@@ -162,7 +162,7 @@ def reset_password(token, new_password):
 
     if updated:
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'email', 'password_hash', 'email_verified', 'verification_token', 'reset_token', 'reset_expiry'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
@@ -426,7 +426,7 @@ def confirm_user_email(user_id):
 
     if updated:
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
@@ -453,7 +453,7 @@ def update_user_password(user_id, new_hash):
 
     if updated:
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
+            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
             writer.writeheader()
             writer.writerows(users)
         return True
