@@ -9,7 +9,11 @@ auth_bp = Blueprint('auth', __name__)
 mail = Mail()
 
 def send_verification_email(email, token):
-    domain = os.environ.get('DOMAIN', 'http://localhost:5000')
+    domain = os.environ.get('VERCEL_URL', os.environ.get('DOMAIN', 'http://localhost:5000'))
+    if domain.startswith('http://localhost'):
+        pass  # keep as is
+    else:
+        domain = f"https://{domain}"  # Vercel uses https
     verify_url = f"{domain}/verify?token={token}"
     msg = Message('Verify Your Email', sender=current_app.config['MAIL_DEFAULT_SENDER'], recipients=[email])
     msg.body = f'Click the link to verify your email: {verify_url}'
@@ -17,7 +21,11 @@ def send_verification_email(email, token):
     return True
 
 def send_reset_email(email, token):
-    domain = os.environ.get('DOMAIN', 'http://localhost:5000')
+    domain = os.environ.get('VERCEL_URL', os.environ.get('DOMAIN', 'http://localhost:5000'))
+    if domain.startswith('http://localhost'):
+        pass  # keep as is
+    else:
+        domain = f"https://{domain}"  # Vercel uses https
     reset_url = f"{domain}/reset-password?token={token}"
     msg = Message('Reset Your Password', sender=current_app.config['MAIL_DEFAULT_SENDER'], recipients=[email])
     msg.body = f'Click the link to reset your password: {reset_url}'
