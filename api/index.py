@@ -1,12 +1,13 @@
 from flask import Flask, redirect, url_for
 from flask_login import LoginManager
+from flask_mail import Mail
 import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.executors.asyncio import AsyncIOExecutor
-from api.auth import User
-from api.csv_handler import get_user_by_id, migrate_csv_to_db
+from api.auth import User, mail
+from api.csv_handler import get_user_by_id
 from api.email_service import check_and_send_reminders
 
 # Initialize extensions
@@ -15,16 +16,12 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__, template_folder='../templates')
 
-    # Migrate data from CSV to database if needed
-    migrate_csv_to_db()
-
     @login_manager.user_loader
     def load_user(user_id):
         user_data = get_user_by_id(user_id)
         if user_data:
             return User(
                 id=user_data['id'],
-                username=user_data['username'],
                 email=user_data['email'],
                 password_hash=user_data['password_hash']
             )
@@ -32,10 +29,17 @@ def create_app():
 
     # Configuration
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+    app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
 
     # Initialize extensions with app
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
+    mail.init_app(app)
 
     @app.route('/')
     def home():

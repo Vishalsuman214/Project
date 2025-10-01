@@ -1,13 +1,10 @@
-- [x] Update get_all_reminders() to use SQLite/PostgreSQL
-- [x] Update mark_reminder_completed() to use SQLite/PostgreSQL
-- [x] Update add_reminder() to use SQLite/PostgreSQL
-- [x] Update get_reminders_by_user_id() to use SQLite/PostgreSQL
-- [x] Update get_reminder_by_id() to use SQLite/PostgreSQL
-- [x] Update update_reminder() to use SQLite/PostgreSQL
-- [x] Update delete_reminder() to use SQLite/PostgreSQL
-- [x] Update migrate_csv_to_db() to work with both DB types
-- [x] Update index.py to call migrate_csv_to_db()
-- [x] Add migration from CSV to SQLite
-- [x] Call migration on app start
-- [x] Add detailed logging to check_and_send_reminders for debugging
-- [x] Fix user_id comparison in reminders.py (remove str conversion)
+# TODO: Generate Flask backend with CSV database for user authentication
+
+- [x] Update users.csv fields to: id,email,password_hash,email_verified,verification_token,reset_token,reset_expiry
+- [x] Update csv_handler.py functions for new user fields
+- [x] Add required dependencies: Flask-Mail, itsdangerous
+- [x] Implement authentication routes: /signup, /verify, /login, /forgot-password, /reset-password
+- [x] Add email sending functionality
+- [x] Create HTML forms for signup, login, forgot password, reset password
+- [x] Update index.py to include new routes
+- [x] Test all functionality

@@ -26,6 +26,7 @@ def create_reminder():
         description = request.form.get('description')
         reminder_time_str = request.form.get('reminder_time')
         recipient_email = request.form.get('recipient_email', '').strip() or None
+        attachment = request.files.get('attachment')
         
         try:
             reminder_time = datetime.strptime(reminder_time_str, '%Y-%m-%dT%H:%M')
@@ -35,7 +36,7 @@ def create_reminder():
         
         try:
             # Create new reminder using CSV
-            add_reminder(str(current_user.id), title, description, reminder_time, recipient_email)
+            add_reminder(str(current_user.id), title, description, reminder_time, recipient_email, attachment)
             flash('Reminder created successfully!')
         except Exception as e:
             print(f"Error creating reminder for user {current_user.id}: {e}")
@@ -60,6 +61,7 @@ def edit_reminder(reminder_id):
         description = request.form.get('description')
         reminder_time_str = request.form.get('reminder_time')
         recipient_email = request.form.get('recipient_email', '').strip() or None
+        attachment = request.files.get('attachment')
         
         try:
             reminder_time = datetime.strptime(reminder_time_str, '%Y-%m-%dT%H:%M')
@@ -68,7 +70,7 @@ def edit_reminder(reminder_id):
             return redirect(url_for('reminders.edit_reminder', reminder_id=reminder_id))
         
         # Update reminder using CSV
-        update_reminder(reminder_id, title, description, reminder_time, recipient_email)
+        update_reminder(reminder_id, title, description, reminder_time, recipient_email, attachment)
         flash('Reminder updated successfully!')
         return redirect(url_for('reminders.dashboard'))
     
@@ -94,38 +96,45 @@ def delete_reminder(reminder_id):
 @reminders_bp.route('/export_reminders')
 @login_required
 def export_reminders():
-    # Get user's reminders
-    reminders = get_reminders_by_user_id(current_user.id)
-    
-    # Create CSV data in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write header
-    writer.writerow(['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
-    
-    # Write data
-    for reminder in reminders:
-        writer.writerow([
-            reminder['id'],
-            reminder['user_id'],
-            reminder['title'],
-            reminder['description'] or '',
-            reminder['reminder_time'],
-            reminder['created_at'],
-            'Yes' if reminder['is_completed'] == 'True' else 'No',
-            reminder.get('recipient_email', '') or ''
-        ])
-    
-    # Prepare file for download
-    output.seek(0)
-    
-    return send_file(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name=f'reminders_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-    )
+    try:
+        # Convert current_user.id to string for consistency
+        user_id_str = str(current_user.id)
+        # Get user's reminders
+        reminders = get_reminders_by_user_id(user_id_str)
+        
+        # Create CSV data in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
+        
+        # Write data with validation and defaults
+        for reminder in reminders:
+            writer.writerow([
+                reminder.get('id', ''),
+                reminder.get('user_id', ''),
+                reminder.get('title', ''),
+                reminder.get('description') or '',
+                reminder.get('reminder_time', ''),
+                reminder.get('created_at', ''),
+                'Yes' if str(reminder.get('is_completed', '')).lower() == 'true' else 'No',
+                reminder.get('recipient_email', '') or ''
+            ])
+        
+        # Prepare file for download
+        output.seek(0)
+        
+        return send_file(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'reminders_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        )
+    except Exception as e:
+        print(f"Error exporting reminders for user {current_user.id}: {e}")
+        flash('An error occurred while exporting reminders.')
+        return redirect(url_for('reminders.dashboard'))
 
 @reminders_bp.route('/import_reminders', methods=['GET', 'POST'])
 @login_required

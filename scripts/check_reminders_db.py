@@ -1,14 +1,15 @@
-import sqlite3
-from api.csv_handler import DB_PATH
+import csv
+import os
+from api.csv_handler import REMINDERS_CSV
 
 def print_reminders():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT id, title, is_completed, reminder_time FROM reminders")
-    rows = c.fetchall()
-    for row in rows:
-        print(f"ID: {row[0]}, Title: {row[1]}, Completed: {row[2]}, Time: {row[3]}")
-    conn.close()
+    if not os.path.exists(REMINDERS_CSV):
+        print("No reminders CSV file found.")
+        return
+    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            print(f"ID: {row['id']}, Title: {row['title']}, Completed: {row['is_completed']}, Time: {row['reminder_time']}")
 
 if __name__ == "__main__":
     print_reminders()

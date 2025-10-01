@@ -175,6 +175,57 @@
             <p class="mb-0">Manage your reminders and stay organized</p>
         </div>
 
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-calendar-alt fa-2x text-primary mb-2"></i>
+                        <h4 class="card-title">{{ reminders|length }}</h4>
+                        <p class="card-text text-muted">Total Reminders</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                        <h4 class="card-title">{{ reminders|selectattr('is_completed', 'equalto', 'False')|list|length }}</h4>
+                        <p class="card-text text-muted">Pending</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                        <h4 class="card-title">{{ reminders|selectattr('is_completed', 'equalto', 'True')|list|length }}</h4>
+                        <p class="card-text text-muted">Completed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-envelope fa-2x text-info mb-2"></i>
+                        <h4 class="card-title">{{ reminders|selectattr('recipient_email')|list|length }}</h4>
+                        <p class="card-text text-muted">With Email</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Tips -->
+        <div class="alert alert-info" role="alert">
+            <h5><i class="fas fa-lightbulb me-2"></i>Quick Tips:</h5>
+            <ul class="mb-0">
+                <li>Create reminders with specific times to get notified</li>
+                <li>Set recipient email to send reminders to others</li>
+                <li>Use CSV import/export to manage reminders in bulk</li>
+                <li>Configure email settings to enable reminder notifications</li>
+            </ul>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h2 class="mb-0"><i class="fas fa-list me-2"></i>Your Reminders</h2>

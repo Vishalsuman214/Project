@@ -1,30 +1,32 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
 from flask_login import login_user, login_required, logout_user, current_user
-from api.csv_handler import add_user, get_user_by_email, get_user_by_id, update_user_email_credentials, generate_reset_token, set_reset_token, clear_reset_token, get_user_by_reset_token, confirm_user_email, is_user_email_confirmed, update_user_password
-from api.email_service import send_test_email, send_password_reset_email, send_email_confirmation_otp
-import uuid
-import random
-from datetime import datetime, timedelta
+from api.csv_handler import add_user, get_user_by_email, verify_password, generate_verification_token, set_verification_token, verify_email, generate_reset_token, set_reset_token, reset_password
+from flask_mail import Mail, Message
+import os
 
 auth_bp = Blueprint('auth', __name__)
 
-def set_auth_notification(message, category='info'):
-    """Set authentication notification to be shown only on login page"""
-    session['auth_notification'] = {
-        'message': message,
-        'category': category
-    }
+mail = Mail()
 
-def get_auth_notification():
-    """Get authentication notification and clear it from session"""
-    notification = session.pop('auth_notification', None)
-    return notification
+def send_verification_email(email, token):
+    domain = os.environ.get('DOMAIN', 'http://localhost:5000')
+    verify_url = f"{domain}/verify?token={token}"
+    msg = Message('Verify Your Email', sender=current_app.config['MAIL_DEFAULT_SENDER'], recipients=[email])
+    msg.body = f'Click the link to verify your email: {verify_url}'
+    mail.send(msg)
+    return True
+
+def send_reset_email(email, token):
+    domain = os.environ.get('DOMAIN', 'http://localhost:5000')
+    reset_url = f"{domain}/reset-password?token={token}"
+    msg = Message('Reset Your Password', sender=current_app.config['MAIL_DEFAULT_SENDER'], recipients=[email])
+    msg.body = f'Click the link to reset your password: {reset_url}'
+    mail.send(msg)
+    return True
 
 class User:
-    def __init__(self, id, username, email, password_hash):
+    def __init__(self, id, email, password_hash):
         self.id = id
-        self.username = username
         self.email = email
         self.password_hash = password_hash
     
@@ -40,30 +42,47 @@ class User:
     def is_anonymous(self):
         return False
 
-@auth_bp.route('/register', methods=['GET', 'POST'])
-def register():
+@auth_bp.route('/signup', methods=['GET', 'POST'])
+def signup():
     if request.method == 'POST':
-        username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
         
         # Check if user already exists
         user_data = get_user_by_email(email)
         if user_data:
-            set_auth_notification('Email address already exists', 'error')
-            return redirect(url_for('auth.register'))
+            flash('Email address already exists', 'error')
+            return redirect(url_for('auth.signup'))
 
         # Create new user
-        password_hash = generate_password_hash(password, method='scrypt')
-        user_id = add_user(username, email, password_hash)
+        token = generate_verification_token(email)
+        user_id = add_user(email, password, token)
+        set_verification_token(email, token)
 
-        # Confirm email immediately (no OTP required)
-        confirm_user_email(user_id)
-
-        set_auth_notification('Account created successfully! You can now log in.', 'success')
+        # Send verification email
+        try:
+            send_verification_email(email, token)
+            flash('Account created! Please check your email to verify your account.', 'success')
+        except Exception as e:
+            flash('Account created but failed to send verification email.', 'warning')
+        
         return redirect(url_for('auth.login'))
     
-    return render_template('register.html')
+    return render_template('signup.html')
+
+@auth_bp.route('/verify')
+def verify():
+    token = request.args.get('token')
+    if not token:
+        flash('Invalid verification link', 'error')
+        return redirect(url_for('auth.login'))
+    
+    if verify_email(token):
+        flash('Email verified successfully! You can now log in.', 'success')
+    else:
+        flash('Invalid or expired verification link', 'error')
+    
+    return redirect(url_for('auth.login'))
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -71,18 +90,19 @@ def forgot_password():
         email = request.form.get('email')
         user_data = get_user_by_email(email)
         if user_data:
-            token = generate_reset_token()
+            token = generate_reset_token(email)
+            from datetime import datetime, timedelta
             expiry = datetime.now() + timedelta(hours=1)
             set_reset_token(user_data['id'], token, expiry)
-            success = send_password_reset_email(user_data['email'], token, user_data['username'])
-            if success:
-                set_auth_notification('If the email exists, a reset link has been sent.', 'info')
-            else:
-                set_auth_notification('Password reset unsuccessful - email not sent.', 'error')
+            try:
+                send_reset_email(email, token)
+                flash('If the email exists, a reset link has been sent.', 'info')
+            except Exception as e:
+                flash('Password reset unsuccessful - email not sent.', 'error')
         else:
-            set_auth_notification('If the email exists, a reset link has been sent.', 'info')  # Don't reveal if email exists
+            flash('If the email exists, a reset link has been sent.', 'info')  # Don't reveal if email exists
         return redirect(url_for('auth.login'))
-    
+
     return render_template('forgot_password.html')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -90,66 +110,50 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        otp = request.form.get('otp')
         
         user_data = get_user_by_email(email)
         
-        if user_data and check_password_hash(user_data['password_hash'], password):
+        if user_data and verify_password(password, user_data['password_hash']) and user_data['email_verified'] == 'True':
             user = User(
                 id=user_data['id'],
-                username=user_data['username'],
                 email=user_data['email'],
                 password_hash=user_data['password_hash']
             )
             
-            # Login directly (email confirmation removed)
             login_user(user)
             return redirect(url_for('reminders.dashboard'))
         else:
-            set_auth_notification('Invalid email or password', 'error')
+            flash('Invalid email or password, or email not verified', 'error')
     
-    notification = get_auth_notification()
-    awaiting_otp = session.get('awaiting_otp', False)
-    return render_template('login.html', get_auth_notification=lambda: notification, awaiting_otp=awaiting_otp)
+    return render_template('login.html')
 
 
 
-@auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    user_data = get_user_by_reset_token(token)
-    if not user_data:
-        set_auth_notification('Invalid or expired reset token.', 'error')
+@auth_bp.route('/reset-password', methods=['GET', 'POST'])
+def reset_password_route():
+    token = request.args.get('token') or request.form.get('token')
+    if not token:
+        flash('Invalid reset link', 'error')
         return redirect(url_for('auth.login'))
-    
-    expiry_str = user_data.get('reset_expiry')
-    if expiry_str:
-        expiry = datetime.strptime(expiry_str, '%Y-%m-%d %H:%M:%S')
-        if datetime.now() > expiry:
-            clear_reset_token(user_data['id'])
-            set_auth_notification('Reset token expired.', 'error')
-            return redirect(url_for('auth.login'))
-    
+
     if request.method == 'POST':
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         if password != confirm_password:
-            set_auth_notification('Passwords do not match.', 'error')
+            flash('Passwords do not match.', 'error')
             return render_template('reset_password.html', token=token)
-        
+
         if len(password) < 6:
-            set_auth_notification('Password must be at least 6 characters.', 'error')
+            flash('Password must be at least 6 characters.', 'error')
             return render_template('reset_password.html', token=token)
-        
-        password_hash = generate_password_hash(password, method='scrypt')
-        success = update_user_password(user_data['id'], password_hash)
-        if success:
-            clear_reset_token(user_data['id'])
-            set_auth_notification('Password reset successfully. Please log in.', 'success')
+
+        if reset_password(token, password):
+            flash('Password reset successfully. Please log in.', 'success')
             return redirect(url_for('auth.login'))
         else:
-            set_auth_notification('Failed to reset password.', 'error')
+            flash('Invalid or expired reset token.', 'error')
             return render_template('reset_password.html', token=token)
-    
+
     return render_template('reset_password.html', token=token)
 
 @auth_bp.route('/logout')
@@ -157,36 +161,3 @@ def reset_password(token):
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
-
-@auth_bp.route('/email_credentials', methods=['GET', 'POST'])
-@login_required
-def email_credentials():
-    from flask import current_app
-    user_id = current_user.get_id()
-    user_data = get_user_by_id(user_id)
-    if request.method == 'POST':
-        action = request.form.get('action')
-        new_email = request.form.get('email')
-        new_app_password = request.form.get('app_password')
-        if action == 'test':
-            if new_email and new_app_password:
-                test_email_sent = send_test_email(new_email, new_app_password, new_email)
-                if test_email_sent:
-                    set_auth_notification('Test email sent successfully. Check your inbox.', 'success')
-                else:
-                    set_auth_notification('Failed to send test email. Please check your email and app password.', 'error')
-            else:
-                set_auth_notification('Please provide both email and app password to test.', 'error')
-        elif action == 'save':
-            if new_email and new_app_password:
-                success = update_user_email_credentials(user_id, new_email, new_app_password)
-                if success:
-                    set_auth_notification('Email credentials updated successfully.', 'success')
-                else:
-                    set_auth_notification('Failed to update email credentials.', 'error')
-            else:
-                set_auth_notification('Please provide both email and app password.', 'error')
-        return redirect(url_for('auth.email_credentials'))
-    current_email = user_data.get('reminder_email', '') if user_data else ''
-    current_app_password = user_data.get('reminder_app_password', '') if user_data else ''
-    return render_template('email_credentials.html', current_email=current_email, current_app_password=current_app_password)
