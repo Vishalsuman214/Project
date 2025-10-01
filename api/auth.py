@@ -72,6 +72,7 @@ def signup():
             send_verification_email(email, token)
             flash('Account created! Please check your email to verify your account.', 'success')
         except Exception as e:
+            print(f"Failed to send verification email: {e}")
             flash('Account created but failed to send verification email.', 'warning')
         
         return redirect(url_for('auth.login'))
