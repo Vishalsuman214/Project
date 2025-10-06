@@ -3,8 +3,8 @@ import sys
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file in the same directory as this script
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))

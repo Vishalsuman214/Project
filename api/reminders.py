@@ -3,6 +3,11 @@ import csv
 from flask_login import login_required, current_user
 from datetime import datetime
 import io
+import sys
+
+# Add project directory to path for imports when running as script
+sys.path.insert(0, 'py-project')
+
 from api.csv_handler import add_reminder, get_reminders_by_user_id, get_reminder_by_id, update_reminder
 
 reminders_bp = Blueprint('reminders', __name__)
@@ -36,7 +41,7 @@ def create_reminder():
         
         try:
             # Create new reminder using CSV
-            add_reminder(str(current_user.id), title, description, reminder_time, recipient_email, attachment)
+            add_reminder(str(current_user.id), title, description, reminder_time, recipient_email)
             flash('Reminder created successfully!')
         except Exception as e:
             print(f"Error creating reminder for user {current_user.id}: {e}")
@@ -46,7 +51,7 @@ def create_reminder():
     
     return render_template('create_reminder.html')
 
-@reminders_bp.route('/edit_reminder/<int:reminder_id>', methods=['GET', 'POST'])
+@reminders_bp.route('/edit_reminder/<reminder_id>', methods=['GET', 'POST'])
 @login_required
 def edit_reminder(reminder_id):
     reminder = get_reminder_by_id(reminder_id)
@@ -77,7 +82,7 @@ def edit_reminder(reminder_id):
     reminder_time = datetime.strptime(reminder['reminder_time'], '%Y-%m-%d %H:%M:%S')
     return render_template('edit_reminder.html', reminder=reminder, reminder_time=reminder_time)
 
-@reminders_bp.route('/delete_reminder/<int:reminder_id>')
+@reminders_bp.route('/delete_reminder/<reminder_id>')
 @login_required
 def delete_reminder(reminder_id):
     reminder = get_reminder_by_id(reminder_id)

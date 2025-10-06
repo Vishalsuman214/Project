@@ -1,466 +1,161 @@
-import os
+from werkzeug.security import generate_password_hash, check_password_hash
 import csv
+import os
 import uuid
-import hashlib
-from datetime import datetime
-from itsdangerous import URLSafeTimedSerializer
+import datetime
 
-if os.environ.get('VERCEL'):
-    TMP_DIR = '/tmp/data'
-else:
-    TMP_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
-USERS_CSV = os.path.join(TMP_DIR, 'users.csv')
-REMINDERS_CSV = os.path.join(TMP_DIR, 'reminders.csv')
+USERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'users.csv')
 
-# For token generation
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-serializer = URLSafeTimedSerializer(SECRET_KEY)
-
-
-
-def init_csv_files():
-    if not os.path.exists(TMP_DIR):
-        os.makedirs(TMP_DIR)
+def read_users():
+    users = []
     if not os.path.exists(USERS_CSV):
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-    if not os.path.exists(REMINDERS_CSV):
-        with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
+        return users
+    with open(USERS_CSV, mode='r', newline='', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            users.append(row)
+    return users
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+def write_users(users):
+    with open(USERS_CSV, mode='w', newline='', encoding='utf-8') as file:
+        fieldnames = ['id', 'email', 'password_hash', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_token_expiry', 'profile_picture', 'bio', 'email_credentials', 'app_password']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for user in users:
+            writer.writerow(user)
 
-def verify_password(password, hashed):
-    return hash_password(password) == hashed
-
-def generate_verification_token(email):
-    return serializer.dumps(email, salt='email-verification')
-
-def generate_reset_token(email):
-    return serializer.dumps(email, salt='password-reset')
-
-def verify_verification_token(token, max_age=86400):  # 24 hours
-    try:
-        email = serializer.loads(token, salt='email-verification', max_age=max_age)
-        return email
-    except:
+def add_user(email, password):
+    users = read_users()
+    if any(user['email'] == email for user in users):
         return None
-
-def verify_reset_token(token, max_age=3600):  # 1 hour
-    try:
-        email = serializer.loads(token, salt='password-reset', max_age=max_age)
-        return email
-    except:
-        return None
-
-def add_user(email, password, verification_token=''):
-    init_csv_files()
-    password_hash = hash_password(password)
-    user_id = get_next_user_id()
-    with open(USERS_CSV, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow([user_id, email, email, password_hash, '', '', 'False', verification_token, '', ''])
+    user_id = str(uuid.uuid4())
+    password_hash = generate_password_hash(password)
+    new_user = {
+        'id': user_id,
+        'email': email,
+        'password_hash': password_hash,
+        'is_email_confirmed': 'True',  # Email verification removed, set to True by default
+        'verification_token': '',
+        'reset_token': '',
+        'reset_token_expiry': '',
+        'profile_picture': '',
+        'bio': '',
+        'email_credentials': '',
+        'app_password': ''
+    }
+    users.append(new_user)
+    write_users(users)
     return user_id
 
-def set_verification_token(email, token):
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    updated = False
-    for user in users:
-        if user['email'] == email:
-            user['verification_token'] = token
-            updated = True
-            break
-
-    if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
-
-def verify_email(token):
-    email = verify_verification_token(token)
-    if not email:
-        return False
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    updated = False
-    for user in users:
-        if user['email'] == email:
-            user['email_verified'] = 'True'
-            user['verification_token'] = ''
-            updated = True
-            break
-
-    if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
-
-def set_reset_token(email, token):
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    updated = False
-    for user in users:
-        if user['email'] == email:
-            user['reset_token'] = token
-            user['reset_expiry'] = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
-            updated = True
-            break
-
-    if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
-
-def reset_password(token, new_password):
-    email = verify_reset_token(token)
-    if not email:
-        return False
-    password_hash = hash_password(new_password)
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    updated = False
-    for user in users:
-        if user['email'] == email:
-            user['password_hash'] = password_hash
-            user['reset_token'] = ''
-            user['reset_expiry'] = ''
-            updated = True
-            break
-
-    if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
-
-def get_next_user_id():
-    if not os.path.exists(USERS_CSV):
-        return 1
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        ids = [int(row['id']) for row in reader]
-        return max(ids) + 1 if ids else 1
-
-def get_next_reminder_id():
-    if not os.path.exists(REMINDERS_CSV):
-        return 1
-    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        ids = [int(row['id']) for row in reader]
-        return max(ids) + 1 if ids else 1
-
 def get_user_by_email(email):
-    if not os.path.exists(USERS_CSV):
-        return None
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['email'] == email:
-                return row
+    users = read_users()
+    for user in users:
+        if user['email'] == email:
+            return user
     return None
 
 def get_user_by_id(user_id):
-    if not os.path.exists(USERS_CSV):
-        return None
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['id'] == str(user_id):
-                return row
+    users = read_users()
+    for user in users:
+        if user['id'] == user_id:
+            return user
     return None
 
-def update_user_email_credentials(user_id, email, app_password):
-    print(f"🔄 Updating email credentials for user {user_id}")
-    if not os.path.exists(USERS_CSV):
-        print(f"❌ Users CSV not found at {USERS_CSV}")
-        return False
-    # Read all users
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    # Update the specific user
+def update_user_password(user_id, new_password_hash):
+    users = read_users()
     updated = False
     for user in users:
-        if user['id'] == str(user_id):
-            user['reminder_email'] = email
-            user['reminder_app_password'] = app_password
-            updated = True
-            print(f"✅ Updated credentials for user {user_id}")
-            break
-
-    if not updated:
-        print(f"❌ User {user_id} not found for credential update")
-
-    if updated:
-        # Write back all users
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        print(f"✅ Credentials saved to CSV for user {user_id}")
-        return True
-    return False
-
-
-
-def add_reminder(user_id, title, description, reminder_time, recipient_email=None, attachment=None):
-    reminder_id = get_next_reminder_id()
-    attachment_filename = None
-    if attachment:
-        # Save attachment to a folder
-        attachments_dir = os.path.join(TMP_DIR, 'attachments')
-        if not os.path.exists(attachments_dir):
-            os.makedirs(attachments_dir)
-        # Use unique filename to avoid collisions
-        ext = os.path.splitext(attachment.filename)[1]
-        attachment_filename = f"{reminder_id}_{uuid.uuid4().hex}{ext}"
-        attachment_path = os.path.join(attachments_dir, attachment_filename)
-        attachment.save(attachment_path)
-    with open(REMINDERS_CSV, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            reminder_id,
-            user_id,
-            title,
-            description or '',
-            reminder_time.strftime('%Y-%m-%d %H:%M:%S'),
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'False',
-            recipient_email or '',
-            attachment_filename or ''
-        ])
-    return reminder_id
-
-def get_reminders_by_user_id(user_id):
-    try:
-        if not os.path.exists(REMINDERS_CSV):
-            return []
-        with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            return [row for row in reader if row.get('user_id') == str(user_id)]
-    except Exception as e:
-        print(f"Error reading reminders CSV: {e}")
-        return []
-
-def get_reminder_by_id(reminder_id):
-    if not os.path.exists(REMINDERS_CSV):
-        return None
-    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['id'] == str(reminder_id):
-                return row
-    return None
-
-def update_reminder(reminder_id, title, description, reminder_time, recipient_email=None, attachment=None):
-    if not os.path.exists(REMINDERS_CSV):
-        return False
-    # Read all reminders
-    reminders = []
-    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        reminders = list(reader)
-
-    # Update the specific reminder
-    updated = False
-    for reminder in reminders:
-        if reminder['id'] == str(reminder_id):
-            reminder['title'] = title
-            reminder['description'] = description or ''
-            reminder['reminder_time'] = reminder_time.strftime('%Y-%m-%d %H:%M:%S')
-            reminder['recipient_email'] = recipient_email or ''
-            if attachment:
-                # Save attachment to a folder
-                attachments_dir = os.path.join(TMP_DIR, 'attachments')
-                if not os.path.exists(attachments_dir):
-                    os.makedirs(attachments_dir)
-                ext = os.path.splitext(attachment.filename)[1]
-                attachment_filename = f"{reminder_id}_{uuid.uuid4().hex}{ext}"
-                attachment_path = os.path.join(attachments_dir, attachment_filename)
-                attachment.save(attachment_path)
-                reminder['attachment'] = attachment_filename
+        if user['id'] == user_id:
+            user['password_hash'] = new_password_hash
             updated = True
             break
-
     if updated:
-        # Write back all reminders
-        with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email', 'attachment'])
-            writer.writeheader()
-            writer.writerows(reminders)
+        write_users(users)
     return updated
 
-def delete_reminder(reminder_id):
-    if not os.path.exists(REMINDERS_CSV):
-        return False
-    # Read all reminders
-    reminders = []
-    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        reminders = list(reader)
+def update_user_profile_picture(user_id, filename):
+    users = read_users()
+    updated = False
+    for user in users:
+        if user['id'] == user_id:
+            user['profile_picture'] = filename
+            updated = True
+            break
+    if updated:
+        write_users(users)
+    return updated
 
-    # Find and remove the specific reminder
-    original_length = len(reminders)
-    reminders = [r for r in reminders if r['id'] != str(reminder_id)]
+def update_user_bio(user_id, bio):
+    users = read_users()
+    updated = False
+    for user in users:
+        if user['id'] == user_id:
+            user['bio'] = bio
+            updated = True
+            break
+    if updated:
+        write_users(users)
+    return updated
 
-    if len(reminders) < original_length:
-        # Write back all reminders
-        with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'user_id', 'title', 'description', 'reminder_time', 'created_at', 'is_completed', 'recipient_email'])
-            writer.writeheader()
-            writer.writerows(reminders)
-        return True
-    return False
+def update_user_email_credentials(user_id, email, app_password):
+    users = read_users()
+    updated = False
+    for user in users:
+        if user['id'] == user_id:
+            user['email_credentials'] = email
+            user['app_password'] = app_password
+            updated = True
+            break
+    if updated:
+        write_users(users)
+    return updated
 
+def verify_password(password, password_hash):
+    return check_password_hash(password_hash, password)
 
+# Stub functions for removed email verification features
+def generate_verification_token(email):
+    return str(uuid.uuid4())
+
+def set_verification_token(user_id, token):
+    pass
+
+def verify_email(token):
+    return True
+
+def generate_reset_token(email):
+    return str(uuid.uuid4())
 
 def set_reset_token(user_id, token, expiry):
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
+    users = read_users()
     updated = False
     for user in users:
-        if user['id'] == str(user_id):
+        if user['id'] == user_id:
             user['reset_token'] = token
-            user['reset_expiry'] = expiry.strftime('%Y-%m-%d %H:%M:%S')
+            user['reset_token_expiry'] = str(expiry)
             updated = True
             break
-
     if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
+        write_users(users)
+    return updated
 
-def clear_reset_token(user_id):
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
+def reset_password(token, new_password):
+    users = read_users()
     updated = False
     for user in users:
-        if user['id'] == str(user_id):
+        if user['reset_token'] == token:
+            user['password_hash'] = generate_password_hash(new_password)
             user['reset_token'] = ''
-            user['reset_expiry'] = ''
+            user['reset_token_expiry'] = ''
             updated = True
             break
-
     if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
+        write_users(users)
+    return updated
 
-def get_user_by_reset_token(token):
-    if not os.path.exists(USERS_CSV):
-        return None
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['reset_token'] == token:
-                return row
-    return None
-
-def confirm_user_email(user_id):
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    updated = False
-    for user in users:
-        if user['id'] == str(user_id):
-            user['is_email_confirmed'] = 'True'
-            updated = True
-            break
-
-    if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
-
-def is_user_email_confirmed(user_id):
-    user = get_user_by_id(user_id)
-    return user and user.get('is_email_confirmed') == 'True'
-
-def update_user_password(user_id, new_hash):
-    if not os.path.exists(USERS_CSV):
-        return False
-    users = []
-    with open(USERS_CSV, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        users = list(reader)
-
-    updated = False
-    for user in users:
-        if user['id'] == str(user_id):
-            user['password_hash'] = new_hash
-            updated = True
-            break
-
-    if updated:
-        with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'username', 'email', 'password_hash', 'reminder_app_password', 'reminder_email', 'is_email_confirmed', 'verification_token', 'reset_token', 'reset_expiry'])
-            writer.writeheader()
-            writer.writerows(users)
-        return True
-    return False
-
+# Reminder functions
 def get_all_reminders():
-    """Get all reminders from CSV"""
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
     if not os.path.exists(REMINDERS_CSV):
         return []
     with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
@@ -468,7 +163,7 @@ def get_all_reminders():
         return list(reader)
 
 def mark_reminder_completed(reminder_id):
-    """Mark a reminder as completed in CSV"""
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
     if not os.path.exists(REMINDERS_CSV):
         return False
     reminders = []
@@ -486,6 +181,105 @@ def mark_reminder_completed(reminder_id):
     if updated:
         with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=['id', 'user_id', 'title', 'description', 'reminder_time', 'recipient_email', 'is_completed'])
+            writer.writeheader()
+            writer.writerows(reminders)
+        return True
+    return False
+
+def add_reminder(user_id, title, description, reminder_time, recipient_email):
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
+    reminder_id = str(uuid.uuid4())
+    new_reminder = {
+        'id': reminder_id,
+        'user_id': user_id,
+        'title': title,
+        'description': description,
+        'reminder_time': reminder_time,
+        'recipient_email': recipient_email,
+        'is_completed': 'False'
+    }
+    reminders = []
+    if os.path.exists(REMINDERS_CSV):
+        with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            reminders = list(reader)
+    reminders.append(new_reminder)
+    with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
+        fieldnames = ['id', 'user_id', 'title', 'description', 'reminder_time', 'recipient_email', 'is_completed']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(reminders)
+    return reminder_id
+
+def get_reminders_by_user_id(user_id):
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
+    if not os.path.exists(REMINDERS_CSV):
+        return []
+    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        return [reminder for reminder in reader if reminder['user_id'] == user_id]
+
+def get_reminder_by_id(reminder_id):
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
+    if not os.path.exists(REMINDERS_CSV):
+        return None
+    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for reminder in reader:
+            if reminder['id'] == reminder_id:
+                return reminder
+    return None
+
+def update_reminder(reminder_id, title=None, description=None, reminder_time=None, recipient_email=None, is_completed=None):
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
+    if not os.path.exists(REMINDERS_CSV):
+        return False
+    reminders = []
+    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        reminders = list(reader)
+
+    updated = False
+    for reminder in reminders:
+        if reminder['id'] == reminder_id:
+            if title is not None:
+                reminder['title'] = title
+            if description is not None:
+                reminder['description'] = description
+            if reminder_time is not None:
+                reminder['reminder_time'] = reminder_time
+            if recipient_email is not None:
+                reminder['recipient_email'] = recipient_email
+            if is_completed is not None:
+                reminder['is_completed'] = is_completed
+            updated = True
+            break
+
+    if updated:
+        with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['id', 'user_id', 'title', 'description', 'reminder_time', 'recipient_email', 'is_completed']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(reminders)
+        return True
+    return False
+
+def delete_reminder(reminder_id):
+    REMINDERS_CSV = os.path.join(os.path.dirname(__file__), '..', 'data', 'reminders.csv')
+    if not os.path.exists(REMINDERS_CSV):
+        return False
+    reminders = []
+    with open(REMINDERS_CSV, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        reminders = list(reader)
+
+    original_length = len(reminders)
+    reminders = [reminder for reminder in reminders if reminder['id'] != reminder_id]
+
+    if len(reminders) < original_length:
+        with open(REMINDERS_CSV, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['id', 'user_id', 'title', 'description', 'reminder_time', 'recipient_email', 'is_completed']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(reminders)
         return True

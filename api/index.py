@@ -2,10 +2,15 @@ from flask import Flask, redirect, url_for
 from flask_login import LoginManager
 from flask_mail import Mail
 import os
+import sys
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.executors.asyncio import AsyncIOExecutor
+
+# Add project directory to path for imports when running as script
+sys.path.insert(0, 'py-project')
+
 from api.auth import User, mail
 from api.csv_handler import get_user_by_id
 from api.email_service import check_and_send_reminders

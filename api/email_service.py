@@ -1,9 +1,14 @@
 import smtplib
 import os
+import sys
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import concurrent.futures
+
+# Add project directory to path for imports when running as script
+sys.path.insert(0, 'py-project')
+
 from api.csv_handler import get_all_reminders, mark_reminder_completed, get_user_by_id
 
 # Email configuration (should be moved to environment variables in production)
@@ -12,9 +17,7 @@ DEFAULT_SENDER_EMAIL = None
 DEFAULT_APP_PASSWORD = None
 
 # System email credentials for auth notifications (password reset, confirmations)
-# Load from environment variables
-SYSTEM_SENDER_EMAIL = os.environ.get('SYSTEM_SENDER_EMAIL')
-SYSTEM_APP_PASSWORD = os.environ.get('SYSTEM_APP_PASSWORD')
+# Load from environment variables inside functions for dynamic updates
 
 def send_reminder_email(receiver_email, reminder_title, reminder_description, reminder_time, user_id=None):
     """Send a reminder email to the specified recipient"""
@@ -22,8 +25,8 @@ def send_reminder_email(receiver_email, reminder_title, reminder_description, re
         # Get user-specific credentials, no defaults
         if user_id:
             user = get_user_by_id(user_id)
-            sender_email = user.get('reminder_email') if user else None
-            app_password = user.get('reminder_app_password') if user else None
+            sender_email = user.get('email_credentials') if user else None
+            app_password = user.get('app_password') if user else None
         else:
             sender_email = None
             app_password = None
@@ -57,8 +60,7 @@ def send_reminder_email(receiver_email, reminder_title, reminder_description, re
         msg.attach(MIMEText(body, "plain"))
 
         # Connect to Gmail SMTP server
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
         server.login(sender_email, app_password)
 
         # Send email
@@ -95,8 +97,7 @@ def send_test_email(sender_email, app_password, test_recipient_email):
         msg.attach(MIMEText(body, "plain"))
 
         # Connect to Gmail SMTP server
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
         server.login(sender_email, app_password)
 
         # Send email
@@ -138,24 +139,24 @@ def check_and_send_reminders(app):
                 continue
 
             # Check if reminder is due
-                if reminder_time <= current_time:
-                    print(f"   ✅ Reminder is due")
-                    user = get_user_by_id(str(reminder['user_id']))
-                    if user:
-                        # Check if user has set email credentials
-                        if not user.get('reminder_email') or not user.get('reminder_app_password'):
-                            print(f"⚠️  Skipping reminder '{reminder['title']}' - user {reminder['user_id']} has not set email credentials")
-                            continue
-
-                        # Use custom recipient email if provided, otherwise use user's email
-                        recipient_email = reminder.get('recipient_email', '') or user['email']
-                        print(f"   📧 Will send to {recipient_email}")
-
-                        reminders_to_send.append((reminder, recipient_email, reminder_time, user))
-                    else:
-                        print(f"   ❌ User {reminder['user_id']} not found")
-                        # Add error handling to avoid crash
+            if reminder_time <= current_time:
+                print(f"   ✅ Reminder is due")
+                user = get_user_by_id(str(reminder['user_id']))
+                if user:
+                    # Check if user has set email credentials
+                    if not user.get('email_credentials') or not user.get('app_password'):
+                        print(f"⚠️  Skipping reminder '{reminder['title']}' - user {reminder['user_id']} has not set email credentials")
                         continue
+
+                    # Use custom recipient email if provided, otherwise use user's email
+                    recipient_email = reminder.get('recipient_email', '') or user['email']
+                    print(f"   📧 Will send to {recipient_email}")
+
+                    reminders_to_send.append((reminder, recipient_email, reminder_time, user))
+                else:
+                    print(f"   ❌ User {reminder['user_id']} not found")
+                    # Add error handling to avoid crash
+                    continue
             else:
                 print(f"   ⏰ Reminder not yet due")
 
@@ -191,13 +192,16 @@ def send_reminder_and_mark(reminder, recipient_email, reminder_time, user):
 def send_password_reset_email(user_email, reset_token, user_name):
     """Send password reset email with link"""
     try:
+        SYSTEM_SENDER_EMAIL = os.environ.get('SYSTEM_SENDER_EMAIL')
+        SYSTEM_APP_PASSWORD = os.environ.get('SYSTEM_APP_PASSWORD')
+
         msg = MIMEMultipart()
         msg["From"] = SYSTEM_SENDER_EMAIL or "noreply@reminderapp.local"
         msg["To"] = user_email
         msg["Subject"] = "Password Reset for Reminder App"
 
         base_url = os.environ.get('BASE_URL', 'http://localhost:5000')
-        reset_link = f"{base_url.rstrip('/')}/reset-password/{reset_token}"
+        reset_link = f"{base_url.rstrip('/')}/reset-password?token={reset_token}"
         body = f"""
         Hello {user_name},
 
@@ -218,8 +222,7 @@ def send_password_reset_email(user_email, reset_token, user_name):
 
         if SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD:
             # Use Gmail SMTP
-            server = smtplib.SMTP("smtp.gmail.com", 587)
-            server.starttls()
+            server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
             server.login(SYSTEM_SENDER_EMAIL, SYSTEM_APP_PASSWORD)
             server.sendmail(SYSTEM_SENDER_EMAIL, user_email, msg.as_string())
             server.quit()
@@ -244,6 +247,9 @@ def send_password_reset_email(user_email, reset_token, user_name):
 def send_email_confirmation_otp(user_email, otp, user_name):
     """Send email confirmation OTP"""
     try:
+        SYSTEM_SENDER_EMAIL = os.environ.get('SYSTEM_SENDER_EMAIL')
+        SYSTEM_APP_PASSWORD = os.environ.get('SYSTEM_APP_PASSWORD')
+
         msg = MIMEMultipart()
         msg["From"] = SYSTEM_SENDER_EMAIL or "noreply@reminderapp.local"
         msg["To"] = user_email
@@ -264,8 +270,7 @@ def send_email_confirmation_otp(user_email, otp, user_name):
 
         if SYSTEM_SENDER_EMAIL and SYSTEM_APP_PASSWORD:
             # Use Gmail SMTP
-            server = smtplib.SMTP("smtp.gmail.com", 587)
-            server.starttls()
+            server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
             server.login(SYSTEM_SENDER_EMAIL, SYSTEM_APP_PASSWORD)
             server.sendmail(SYSTEM_SENDER_EMAIL, user_email, msg.as_string())
             server.quit()
